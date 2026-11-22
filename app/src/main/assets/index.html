@@ -202,6 +202,21 @@ button:disabled { opacity: 0.45; cursor: default; }
 @keyframes approved-spin { 0%,100% {transform:translateY(0) rotate(-7deg) scale(.97);}
   50% {transform:translateY(-4%) rotate(7deg) scale(1.03);} }
 @media (max-height:550px) { .stage.dance { top:3dvh; height:94dvh; } }
+
+/* Pose-based dance renderer. Six exact approved character illustrations form
+   a generated sprite strip; each routine selects frames in its own order. */
+.stage.dance .approved-pose {
+  height: 100%; width: auto; aspect-ratio: 280 / 315; max-width: 100%;
+  background: #fcf7ee url('approved_dancer_strip.png') 0% 0% / 600% 100% no-repeat;
+  transform-origin: 50% 78%; will-change: transform, background-position;
+  flex: 0 0 auto; pointer-events: none;
+}
+.dock.with-mascot .approved-pose {
+  height: 100%; width: auto; aspect-ratio: 280 / 315; max-width: 100%;
+  background: #fcf7ee url('approved_dancer_strip.png') 0% 0% / 600% 100% no-repeat;
+  transform-origin: 50% 78%; will-change: transform, background-position;
+  pointer-events: auto;
+}
 </style>
 </head>
 <body>
@@ -4770,6 +4785,7 @@ function startApp(words, dances, moves) {
   let afterStage = null;
   let danceDeck = [];
   let danceCount = 0;
+  let resultDances = [];
   const pickOne = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
   // every dance is shown once (in random order) before any repeats
@@ -4798,8 +4814,8 @@ function startApp(words, dances, moves) {
     let ms;
     if (kind === 'dance') {
       const d = nextDance();
-      stage = { kind, title: d.n, line: d.c, sub, skippable: true, rhythm: (danceCount - 1) % 5, bpm: d.bpm };
-      mascot.dance(d, DANCE_MS);
+      stage = { kind, title: d.n, line: d.c, sub, skippable: true, routine: d, bpm: d.bpm };
+      mascot.idle(); // Exact artwork is animated by approvedPose() instead of the old SVG rig.
       const pre = Math.round(beatMs(d));
       sfx(['boing', 'toot', 'whistle'][danceCount % 3]);
       playBeat(d, DANCE_MS - pre - 250, pre);
@@ -4851,7 +4867,8 @@ function startApp(words, dances, moves) {
       sfx('wah');
     } else if (game.winner === 'draw') mascot.idle('happy');
     else if (dances.length) {
-      mascot.victory([nextDance(), nextDance()], 1800);
+      resultDances = [nextDance(), nextDance(), nextDance()];
+      mascot.idle('cheer');
       sfx('toot');
     } else mascot.idle('cheer');
   }
@@ -5317,6 +5334,90 @@ function startApp(words, dances, moves) {
     ];
   }
 
+
+  // Each move has its own distinct pose order, unlike the old GIF which
+  // repeated frames 0,1,2,3,4,5 for every celebration.
+  const APPROVED_MOVE_POSES = {
+    side_groove: [0,1,5,1], shoulder_roll: [0,5,1,5],
+    clap_step: [0,2,1,2], heel_toe: [1,0,5,0],
+    running_man: [1,4,1,4], body_wave: [0,5,1,5],
+    cross_step: [1,0,3,1], kick_change: [0,3,1,0],
+    skater_slide: [1,5,1,0], disco_reach: [0,3,0,3],
+    hand_jive: [2,0,2,5], snap_sway: [5,0,1,0],
+    boxer_shuffle: [0,1,0,4], walk_it_out: [1,0,1,3],
+    turn_pose: [0,3,5,3], bounce_point: [0,3,4,3],
+    hiphop_sway: [5,1,5,0], jump_joy: [0,4,0,4],
+    toe_tap: [1,3,1,0], march_groove: [0,1,4,1]
+  };
+
+  function approvedPose(initialDance, loopResults) {
+    const art = h('div', { class: 'approved-pose', role: 'img',
+      'aria-label': 'Approved cartoon dancer performing distinct human-style movements' });
+    const t0 = performance.now();
+    const reduced = typeof matchMedia === 'function' &&
+      matchMedia('(prefers-reduced-motion: reduce)').matches;
+    let stopped = false;
+    // A missing generated strip (such as a direct local HTML preview) falls
+    // back to the original GIF rather than showing an empty dancer.
+    const asset = new Image();
+    asset.onerror = () => {
+      art.style.backgroundImage = "url('approved_dancer.gif')";
+      art.style.backgroundSize = '100% 100%';
+      art.style.backgroundPosition = 'center';
+      art.dataset.fallback = 'true';
+    };
+    asset.src = 'approved_dancer_strip.png';
+
+    function frame(now) {
+      if (stopped || !art.isConnected) return;
+      if (reduced) {
+        art.style.backgroundPosition = '0% 0%';
+        return;
+      }
+      const elapsed = Math.max(0, now - t0);
+      const choices = loopResults && resultDances.length ? resultDances : [initialDance];
+      const d = choices[Math.floor(elapsed / DANCE_MS) % choices.length] || initialDance;
+      const t = loopResults ? elapsed % DANCE_MS : elapsed;
+      const beats = (t / beatMs(d)) % routineBeats(d);
+      let elapsedBeats = 0;
+      let moveName = d.m[0];
+      let progress = 0;
+      for (const token of d.m) {
+        const name = token.endsWith('~') ? token.slice(0, -1) : token;
+        const mv = getMoves()[name];
+        if (!mv) continue;
+        if (beats < elapsedBeats + mv.len) {
+          moveName = name;
+          progress = (beats - elapsedBeats) / mv.len;
+          break;
+        }
+        elapsedBeats += mv.len;
+      }
+      const sequence = APPROVED_MOVE_POSES[moveName] || [0,1,2,3];
+      const poseIndex = sequence[Math.min(sequence.length - 1, Math.floor(progress * sequence.length))];
+      if (art.dataset.fallback !== 'true') art.style.backgroundPosition = (poseIndex * 20) + '% 0%';
+
+      // Use each routine's interpolated choreography to give the illustration
+      // dancing weight-shifts, knee dips, hops and body lean—not just CSS sway.
+      const p = samplePose(d, t);
+      const x = p[IDX.x] * 0.43 + p[IDX.px] * 0.16;
+      const y = p[IDX.y] * 0.37 + p[IDX.py] * 0.12;
+      const tilt = p[IDX.rot] * 0.6 + p[IDX.lean] * 0.35 + p[IDX.tilt] * 0.15;
+      const squash = Math.max(0.94, Math.min(1.065, p[IDX.sy]));
+      art.style.transform = 'translate(' + x.toFixed(1) + 'px, ' +
+        y.toFixed(1) + 'px) rotate(' + tilt.toFixed(1) +
+        'deg) scale(' + (1 / squash).toFixed(3) + ', ' + squash.toFixed(3) + ')';
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+    // In the persistent result dock tapping the image freezes the dance.
+    if (loopResults) art.addEventListener('click', (e) => {
+      e.stopPropagation();
+      stopped = true;
+    });
+    return art;
+  }
+
   function dock(title, sub, buttons, withMascot) {
     const body = [
       h('div', { class: 'dock-title' }, title),
@@ -5326,8 +5427,7 @@ function startApp(words, dances, moves) {
     if (withMascot && settings.mascot) {
       const box = h('div', { class: 'mbox' });
       if (sheet === 'result' && !game.gaveUp && (game.mode === 'solo' || game.winner === 'player')) {
-        box.append(h('img', { class: 'approved-result-dancer', src: 'approved_dancer.gif',
-          alt: 'The approved cartoon dancer celebrating', draggable: 'false' }));
+        box.append(approvedPose(resultDances[0] || dances[0], true));
       } else box.append(mascot.el);
       return h('div', { class: 'dock with-mascot', role: 'dialog', 'aria-label': title }, box, h('div', { class: 'dock-body' }, body));
     }
@@ -5337,11 +5437,7 @@ function startApp(words, dances, moves) {
   function stagePanel() {
     const box = h('div', { class: 'mbox' });
     if (stage.kind === 'dance') {
-      const art = h('img', { class: 'approved-dancer', src: 'approved_dancer.gif',
-        alt: 'Approved human-style blue hoodie dancer', draggable: 'false' });
-      const rhythms = ['approved-drift', 'approved-groove', 'approved-hops', 'approved-shuffle', 'approved-spin'];
-      art.style.animation = rhythms[stage.rhythm] + ' ' + Math.round(120000 / stage.bpm) + 'ms ease-in-out infinite';
-      box.append(art);
+      box.append(approvedPose(stage.routine, false));
     } else box.append(mascot.el);
     return h('div', { class: 'stage ' + stage.kind, role: 'status', onclick: () => { if (stage && stage.skippable) endStage(); } },
       box,

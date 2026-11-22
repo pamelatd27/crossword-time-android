@@ -36,6 +36,30 @@ jobs:
           yes | "$SDKMANAGER" --licenses > /dev/null || true
           "$SDKMANAGER" "platforms;android-36" "build-tools;36.0.0"
 
+
+      - name: Generate six approved dance pose frames for distinct routines
+        run: |
+          python3 -m pip install --quiet Pillow
+          python3 - <<'PY'
+          from PIL import Image
+          from pathlib import Path
+          source = Path('app/src/main/assets/approved_dancer.gif')
+          assert source.exists(), 'Approved character asset is missing'
+          im = Image.open(source)
+          frames = []
+          for i in range(im.n_frames):
+              im.seek(i)
+              frames.append(im.convert('RGB').copy())
+          assert len(frames) == 6, f'Expected 6 approved poses, got {len(frames)}'
+          w, h = frames[0].size
+          strip = Image.new('RGB', (w * len(frames), h))
+          for i, image in enumerate(frames):
+              strip.paste(image, (i * w, 0))
+          dest = source.with_name('approved_dancer_strip.png')
+          strip.save(dest, optimize=True)
+          print(f'Created {dest} ({strip.width} x {strip.height})')
+          PY
+
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
