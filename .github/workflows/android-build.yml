@@ -2,7 +2,7 @@ name: Android APK and AAB
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, feature3.0]
   pull_request:
     branches: [main, master]
   workflow_dispatch:
