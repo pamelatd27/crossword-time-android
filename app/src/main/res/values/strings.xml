@@ -1,3 +1,15 @@
 <resources>
     <string name="app_name">Crossword Time</string>
+    <string name="monetization_menu">Options</string>
+    <string name="billing_remove_ads">Remove Ads</string>
+    <string name="billing_purchase_confirmation">Remove ads from Crossword Time with a one-time purchase of %1$s.</string>
+    <string name="billing_continue">Continue to Google Play</string>
+    <string name="billing_restore">Restore purchase</string>
+    <string name="billing_ad_free_active">Ad-free is active</string>
+    <string name="billing_pending">Payment pending</string>
+    <string name="billing_checking">Checking Google Play. Try again in a moment.</string>
+    <string name="billing_no_purchase">No Remove Ads purchase was found on this Google Play account.</string>
+    <string name="billing_unavailable">Google Play billing is unavailable. Please try again.</string>
+    <string name="billing_offer_unavailable">Remove Ads is currently unavailable. Please try again later.</string>
+    <string name="ads_privacy_options">Ad privacy choices</string>
 </resources>
