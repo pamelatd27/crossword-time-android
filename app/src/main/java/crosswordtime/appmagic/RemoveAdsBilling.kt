@@ -129,8 +129,9 @@ internal class RemoveAdsBilling(
                     if (ownership != Ownership.FREE) return@onMain
                     val details = detailsResult.productDetailsList.firstOrNull()
                     val offer = details?.oneTimePurchaseOfferDetailsList?.firstOrNull()
+                    val offerToken = offer?.offerToken
                     if (result.responseCode != BillingClient.BillingResponseCode.OK ||
-                        details == null || offer == null
+                        details == null || offer == null || offerToken.isNullOrBlank()
                     ) {
                         onMessage(R.string.billing_offer_unavailable)
                         return@onMain
@@ -139,7 +140,7 @@ internal class RemoveAdsBilling(
                         if (ownership != Ownership.FREE) return@launch
                         val item = BillingFlowParams.ProductDetailsParams.newBuilder()
                             .setProductDetails(details)
-                            .setOfferToken(offer.offerToken)
+                            .setOfferToken(offerToken)
                             .build()
                         val flow = BillingFlowParams.newBuilder()
                             .setProductDetailsParamsList(listOf(item))
