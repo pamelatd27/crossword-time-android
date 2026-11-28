@@ -19,7 +19,7 @@ android {
         applicationId = "crosswordtime.magicapp"
         minSdk = 24
         targetSdk = 36
-        versionCode = providers.gradleProperty("playVersionCode").orElse("8").get().toInt()
+        versionCode = providers.gradleProperty("playVersionCode").orElse("9").get().toInt()
         versionName = "1.1"
 
         testInstrumentationRunner =
